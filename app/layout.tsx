@@ -1,23 +1,39 @@
 import type React from "react"
 import type { Metadata } from "next"
-import { Geist } from "next/font/google"
-import { SubscriptionProvider } from "@/contexts/subscription-context"
-import { AuthProvider } from "@/contexts/auth-context"
-import { Footer } from "@/components/footer"
+import { Inter } from "next/font/google"
 import { Toaster } from "sonner"
 import "./globals.css"
 
-const geist = Geist({ subsets: ["latin"] })
+const inter = Inter({
+  subsets: ["latin"],
+  variable: "--font-inter",
+})
 
 export const metadata: Metadata = {
-  title: "8x Hiring Template",
-  description: "A SaaS starter template for frontend engineering assessments.",
+  title: "stats.fm Clone — Your Spotify Listening Stats",
+  description:
+    "Deep analytics for your Spotify history — top artists, tracks, listening patterns, genre breakdowns, mood analysis, and a shareable personality card.",
+  keywords: [
+    "spotify stats",
+    "listening history",
+    "music analytics",
+    "stats.fm",
+    "spotify wrapped",
+    "top artists",
+    "top tracks",
+  ],
   icons: {
     icon: [
       { url: "/favicon-32x32.png" },
       { url: "/favicon-16x16.png", sizes: "16x16" },
     ],
     apple: "/apple-touch-icon.png",
+  },
+  openGraph: {
+    title: "stats.fm Clone — Your Spotify Listening Stats",
+    description:
+      "Deep analytics for your Spotify history — top artists, tracks, listening patterns, and a shareable personality card.",
+    type: "website",
   },
 }
 
@@ -28,16 +44,18 @@ export default function RootLayout({
 }>) {
   return (
     <html lang="en">
-      <body className={`${geist.className} antialiased flex flex-col min-h-screen`}>
-        <AuthProvider>
-          <SubscriptionProvider>
-            <div className="flex-1 flex flex-col">
-              {children}
-            </div>
-            <Footer />
-          </SubscriptionProvider>
-        </AuthProvider>
-        <Toaster position="top-center" />
+      <body className={`${inter.className} antialiased`}>
+        {children}
+        <Toaster
+          position="top-center"
+          toastOptions={{
+            style: {
+              background: "rgba(20, 20, 30, 0.95)",
+              border: "1px solid rgba(255,255,255,0.1)",
+              color: "#fff",
+            },
+          }}
+        />
       </body>
     </html>
   )

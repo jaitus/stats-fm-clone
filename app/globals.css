@@ -3,54 +3,51 @@
 @custom-variant dark (&:is(.dark *));
 
 :root {
-  /* Ultrathink dark-mode premium design tokens */
-  --background: oklch(0.12 0 0);
+  /* stats.fm inspired dark premium design tokens */
+  --background: oklch(0.09 0.005 260);
   --foreground: oklch(0.95 0 0);
-  --card: oklch(0.15 0 0);
+  --card: oklch(0.13 0.005 260);
   --card-foreground: oklch(0.95 0 0);
-  --popover: oklch(0.15 0 0);
+  --popover: oklch(0.13 0.005 260);
   --popover-foreground: oklch(0.95 0 0);
-  /* Primary color: #760716 (dark wine/burgundy) - see lib/colors.ts for hex source */
-  --primary: oklch(0.33 0.14 18);
-  --primary-foreground: oklch(0.98 0 0);
-  --secondary: oklch(0.2 0 0);
+
+  /* Primary: Spotify-inspired vibrant green */
+  --primary: oklch(0.72 0.19 155);
+  --primary-foreground: oklch(0.13 0.005 260);
+  --secondary: oklch(0.16 0.005 260);
   --secondary-foreground: oklch(0.95 0 0);
-  --muted: oklch(0.25 0 0);
-  --muted-foreground: oklch(0.65 0 0);
-  --accent: oklch(0.33 0.14 18);
-  --accent-foreground: oklch(0.98 0 0);
+  --muted: oklch(0.20 0.005 260);
+  --muted-foreground: oklch(0.60 0 0);
+  --accent: oklch(0.72 0.19 155);
+  --accent-foreground: oklch(0.13 0.005 260);
   --destructive: oklch(0.577 0.245 27.325);
   --destructive-foreground: oklch(0.95 0 0);
-  --border: oklch(0.25 0 0);
-  --input: oklch(0.2 0 0);
-  --ring: oklch(0.33 0.14 18);
-  --chart-1: oklch(0.33 0.14 18);
-  --chart-2: oklch(0.30 0.12 18);
-  --chart-3: oklch(0.43 0.16 18);
-  --chart-4: oklch(0.26 0.10 18);
-  --chart-5: oklch(0.53 0.15 18);
-  --radius: 0.5rem;
-  --sidebar: oklch(0.15 0 0);
-  --sidebar-foreground: oklch(0.95 0 0);
-  --sidebar-primary: oklch(0.33 0.14 18);
-  --sidebar-primary-foreground: oklch(0.98 0 0);
-  --sidebar-accent: oklch(0.2 0 0);
-  --sidebar-accent-foreground: oklch(0.95 0 0);
-  --sidebar-border: oklch(0.25 0 0);
-  --sidebar-ring: oklch(0.33 0.14 18);
+  --border: oklch(0.22 0.005 260);
+  --input: oklch(0.16 0.005 260);
+  --ring: oklch(0.72 0.19 155);
 
-  /* Preview mode color variants (unified with primary) */
-  --preview: oklch(0.33 0.14 18);
-  --preview-light: oklch(0.43 0.16 18);
-  --preview-lighter: oklch(0.53 0.15 18);
-  --preview-dark: oklch(0.26 0.12 18);
+  /* Chart colors — vibrant spectrum */
+  --chart-1: oklch(0.72 0.19 155);
+  --chart-2: oklch(0.65 0.20 250);
+  --chart-3: oklch(0.70 0.18 330);
+  --chart-4: oklch(0.75 0.15 80);
+  --chart-5: oklch(0.60 0.22 30);
+
+  --radius: 0.625rem;
+
+  --sidebar: oklch(0.11 0.005 260);
+  --sidebar-foreground: oklch(0.95 0 0);
+  --sidebar-primary: oklch(0.72 0.19 155);
+  --sidebar-primary-foreground: oklch(0.13 0.005 260);
+  --sidebar-accent: oklch(0.16 0.005 260);
+  --sidebar-accent-foreground: oklch(0.95 0 0);
+  --sidebar-border: oklch(0.22 0.005 260);
+  --sidebar-ring: oklch(0.72 0.19 155);
 }
 
 @theme inline {
-  /* Added Playfair Display serif for headlines */
-  --font-sans: "Geist", "Geist Fallback";
-  --font-serif: "Playfair Display", "Georgia", "serif";
-  --font-mono: "Geist Mono", "Geist Mono Fallback";
+  --font-sans: "Inter", "Geist", "Geist Fallback", system-ui, sans-serif;
+  --font-mono: "Geist Mono", "Geist Mono Fallback", monospace;
   --color-background: var(--background);
   --color-foreground: var(--foreground);
   --color-card: var(--card);
@@ -87,11 +84,6 @@
   --color-sidebar-accent-foreground: var(--sidebar-accent-foreground);
   --color-sidebar-border: var(--sidebar-border);
   --color-sidebar-ring: var(--sidebar-ring);
-  /* Preview mode colors (unified with primary) */
-  --color-preview: var(--preview);
-  --color-preview-light: var(--preview-light);
-  --color-preview-lighter: var(--preview-lighter);
-  --color-preview-dark: var(--preview-dark);
 }
 
 @layer base {
@@ -101,27 +93,140 @@
   body {
     @apply bg-background text-foreground;
   }
-  /* Added subtle grain texture */
-  body::before {
-    content: "";
-    position: fixed;
-    top: 0;
-    left: 0;
-    width: 100%;
-    height: 100%;
-    background-image: url("data:image/svg+xml,%3Csvg viewBox='0 0 400 400' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='noiseFilter'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.9' numOctaves='4' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23noiseFilter)' opacity='0.03'/%3E%3C/svg%3E");
-    pointer-events: none;
-    z-index: 9999;
+}
+
+/* ─── Custom Utilities ────────────────────────────────────────────────────── */
+
+/* Glassmorphism card */
+.glass-card {
+  background: linear-gradient(
+    135deg,
+    rgba(255, 255, 255, 0.03) 0%,
+    rgba(255, 255, 255, 0.01) 100%
+  );
+  backdrop-filter: blur(20px);
+  border: 1px solid rgba(255, 255, 255, 0.06);
+}
+
+/* Glow effects */
+.glow-green {
+  box-shadow: 0 0 20px rgba(29, 185, 84, 0.15),
+              0 0 60px rgba(29, 185, 84, 0.05);
+}
+
+.glow-green-lg {
+  box-shadow: 0 0 40px rgba(29, 185, 84, 0.2),
+              0 0 100px rgba(29, 185, 84, 0.08);
+}
+
+/* Text gradient */
+.text-gradient {
+  background: linear-gradient(135deg, #1DB954 0%, #1ed760 50%, #4ade80 100%);
+  -webkit-background-clip: text;
+  -webkit-text-fill-color: transparent;
+  background-clip: text;
+}
+
+/* Animated gradient background */
+.animated-gradient {
+  background: linear-gradient(
+    -45deg,
+    oklch(0.09 0.005 260),
+    oklch(0.12 0.02 155),
+    oklch(0.09 0.005 260),
+    oklch(0.11 0.01 250)
+  );
+  background-size: 400% 400%;
+  animation: gradient-shift 15s ease infinite;
+}
+
+@keyframes gradient-shift {
+  0% { background-position: 0% 50%; }
+  50% { background-position: 100% 50%; }
+  100% { background-position: 0% 50%; }
+}
+
+/* Pulse animation for loading */
+@keyframes pulse-glow {
+  0%, 100% { opacity: 0.4; }
+  50% { opacity: 1; }
+}
+
+.pulse-glow {
+  animation: pulse-glow 2s ease-in-out infinite;
+}
+
+/* Skeleton shimmer */
+@keyframes shimmer {
+  0% { background-position: -200% 0; }
+  100% { background-position: 200% 0; }
+}
+
+.skeleton-shimmer {
+  background: linear-gradient(
+    90deg,
+    rgba(255, 255, 255, 0.03) 25%,
+    rgba(255, 255, 255, 0.08) 50%,
+    rgba(255, 255, 255, 0.03) 75%
+  );
+  background-size: 200% 100%;
+  animation: shimmer 1.5s ease-in-out infinite;
+}
+
+/* Fade in animation */
+@keyframes fade-in-up {
+  from {
+    opacity: 0;
+    transform: translateY(12px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
   }
 }
 
-.dark {
-  --sidebar: hsl(240 5.9% 10%);
-  --sidebar-foreground: hsl(240 4.8% 95.9%);
-  --sidebar-primary: hsl(224.3 76.3% 48%);
-  --sidebar-primary-foreground: hsl(0 0% 100%);
-  --sidebar-accent: hsl(240 3.7% 15.9%);
-  --sidebar-accent-foreground: hsl(240 4.8% 95.9%);
-  --sidebar-border: hsl(240 3.7% 15.9%);
-  --sidebar-ring: hsl(217.2 91.2% 59.8%);
+.fade-in-up {
+  animation: fade-in-up 0.5s ease-out forwards;
+}
+
+/* Stagger children animations */
+.stagger-children > * {
+  opacity: 0;
+  animation: fade-in-up 0.4s ease-out forwards;
+}
+
+.stagger-children > *:nth-child(1) { animation-delay: 0.05s; }
+.stagger-children > *:nth-child(2) { animation-delay: 0.1s; }
+.stagger-children > *:nth-child(3) { animation-delay: 0.15s; }
+.stagger-children > *:nth-child(4) { animation-delay: 0.2s; }
+.stagger-children > *:nth-child(5) { animation-delay: 0.25s; }
+.stagger-children > *:nth-child(6) { animation-delay: 0.3s; }
+.stagger-children > *:nth-child(7) { animation-delay: 0.35s; }
+.stagger-children > *:nth-child(8) { animation-delay: 0.4s; }
+.stagger-children > *:nth-child(9) { animation-delay: 0.45s; }
+.stagger-children > *:nth-child(10) { animation-delay: 0.5s; }
+
+/* Heatmap cell hover */
+.heatmap-cell {
+  transition: transform 0.15s ease, opacity 0.15s ease;
+}
+.heatmap-cell:hover {
+  transform: scale(1.3);
+  z-index: 10;
+}
+
+/* Scrollbar styling */
+::-webkit-scrollbar {
+  width: 6px;
+  height: 6px;
+}
+::-webkit-scrollbar-track {
+  background: transparent;
+}
+::-webkit-scrollbar-thumb {
+  background: rgba(255, 255, 255, 0.1);
+  border-radius: 3px;
+}
+::-webkit-scrollbar-thumb:hover {
+  background: rgba(255, 255, 255, 0.2);
 }
