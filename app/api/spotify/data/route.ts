@@ -7,13 +7,19 @@ import {
   getAudioFeatures,
   type TimeRange,
 } from "@/lib/spotify";
+import {
+  DEMO_PROFILE,
+  DEMO_TRACKS,
+  DEMO_ARTISTS,
+  DEMO_RECENTLY_PLAYED,
+  DEMO_AUDIO_FEATURES,
+} from "@/lib/demo-data";
 
 // ─── In-memory cache to prevent Spotify rate limiting ────────────────────────
 const cache = new Map<string, { data: unknown; expiry: number }>();
 const CACHE_TTL_MS = 10 * 60 * 1000; // 10 minutes cache
 const RATE_LIMIT_BACKOFF_MS = 30 * 60 * 1000; // 30 minutes backoff on 429
 
-// Track when we're rate limited — don't hit Spotify at all during backoff
 let rateLimitedUntil = 0;
 
 function getCached<T>(key: string): T | null {
@@ -29,7 +35,19 @@ function setCache(key: string, data: unknown, ttl: number = CACHE_TTL_MS): void 
   cache.set(key, { data, expiry: Date.now() + ttl });
 }
 
-// Default empty responses for each endpoint type
+// Demo data responses
+function getDemoResponse(endpoint: string | null): unknown {
+  switch (endpoint) {
+    case "profile": return DEMO_PROFILE;
+    case "top-tracks": return DEMO_TRACKS;
+    case "top-artists": return DEMO_ARTISTS;
+    case "recently-played": return DEMO_RECENTLY_PLAYED;
+    case "audio-features": return DEMO_AUDIO_FEATURES;
+    default: return null;
+  }
+}
+
+// Empty fallback responses
 function getEmptyResponse(endpoint: string): unknown {
   switch (endpoint) {
     case "profile": return null;
@@ -43,30 +61,33 @@ function getEmptyResponse(endpoint: string): unknown {
 
 export async function GET(request: NextRequest) {
   const accessToken = request.cookies.get("spotify_access_token")?.value;
-
-  if (!accessToken) {
-    return NextResponse.json({ error: "Not authenticated" }, { status: 401 });
-  }
-
   const searchParams = request.nextUrl.searchParams;
   const endpoint = searchParams.get("endpoint");
   const timeRange = (searchParams.get("time_range") || "medium_term") as TimeRange;
-  const cacheKey = `${endpoint}:${timeRange}:${searchParams.get("ids")?.slice(0, 20) || ""}`;
+  const isDemo = searchParams.get("demo") === "true";
 
-  // 1. Check cache first
+  // ─── Demo Mode: serve mock data when no auth or explicitly requested ───
+  if (!accessToken || isDemo) {
+    const demo = getDemoResponse(endpoint);
+    if (demo) return NextResponse.json(demo);
+    return NextResponse.json({ error: "Invalid endpoint" }, { status: 400 });
+  }
+
+  // ─── Cache check ───────────────────────────────────────────────────────
+  const cacheKey = `${endpoint}:${timeRange}:${searchParams.get("ids")?.slice(0, 20) || ""}`;
   const cached = getCached(cacheKey);
   if (cached !== null) {
     return NextResponse.json(cached);
   }
 
-  // 2. If we're in rate-limit backoff, return empty data immediately (don't hit Spotify)
+  // ─── Rate limit backoff ────────────────────────────────────────────────
   if (Date.now() < rateLimitedUntil) {
-    console.log(`[Spotify] Rate limit backoff active (${Math.round((rateLimitedUntil - Date.now()) / 1000)}s remaining) — returning empty for ${endpoint}`);
-    const empty = getEmptyResponse(endpoint || "");
-    return NextResponse.json(empty);
+    console.log(`[Spotify] Rate limit backoff active — returning demo data for ${endpoint}`);
+    const demo = getDemoResponse(endpoint);
+    return NextResponse.json(demo || getEmptyResponse(endpoint || ""));
   }
 
-  // 3. Fetch from Spotify
+  // ─── Fetch from Spotify ────────────────────────────────────────────────
   try {
     let result: unknown;
 
@@ -95,8 +116,8 @@ export async function GET(request: NextRequest) {
         try {
           result = await getAudioFeatures(accessToken, ids.split(","));
         } catch {
-          console.warn("[Spotify API] Audio features unavailable — returning empty array");
-          result = [];
+          console.warn("[Spotify API] Audio features unavailable — returning demo data");
+          result = DEMO_AUDIO_FEATURES;
         }
         break;
       }
@@ -104,24 +125,24 @@ export async function GET(request: NextRequest) {
         return NextResponse.json({ error: "Invalid endpoint" }, { status: 400 });
     }
 
-    // Cache successful response
     setCache(cacheKey, result);
     return NextResponse.json(result);
   } catch (err) {
     console.error("[Spotify API] Error:", err);
 
-    // Token expired — tell client to refresh
     if (err instanceof Error && err.message.includes("401")) {
       return NextResponse.json({ error: "Token expired", code: "TOKEN_EXPIRED" }, { status: 401 });
     }
 
-    // Rate limited — activate backoff, return empty data so dashboard still renders
+    // Rate limited — serve demo data instead of empty data
     if (err instanceof Error && err.message.includes("429")) {
       rateLimitedUntil = Date.now() + RATE_LIMIT_BACKOFF_MS;
-      console.warn(`[Spotify] Rate limited! Backing off for ${RATE_LIMIT_BACKOFF_MS / 1000}s. No more Spotify calls until ${new Date(rateLimitedUntil).toISOString()}`);
-      const empty = getEmptyResponse(endpoint || "");
-      setCache(cacheKey, empty, RATE_LIMIT_BACKOFF_MS); // cache the empty response during backoff
-      return NextResponse.json(empty);
+      console.warn(`[Spotify] Rate limited! Serving demo data. Backoff until ${new Date(rateLimitedUntil).toISOString()}`);
+      const demo = getDemoResponse(endpoint);
+      if (demo) {
+        setCache(cacheKey, demo, RATE_LIMIT_BACKOFF_MS);
+        return NextResponse.json(demo);
+      }
     }
 
     return NextResponse.json({ error: "API request failed" }, { status: 500 });
