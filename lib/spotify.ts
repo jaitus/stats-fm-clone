@@ -155,7 +155,8 @@ export async function refreshAccessToken(refreshToken: string) {
 async function spotifyFetch<T>(
   endpoint: string,
   accessToken: string,
-  params?: Record<string, string>
+  params?: Record<string, string>,
+  retryAttempt: number = 0
 ): Promise<T> {
   const url = new URL(`${SPOTIFY_API_BASE}${endpoint}`);
   if (params) {
@@ -167,6 +168,17 @@ async function spotifyFetch<T>(
   const response = await fetch(url.toString(), {
     headers: { Authorization: `Bearer ${accessToken}` },
   });
+
+  if (response.status === 429 && retryAttempt < 1) {
+    const retryAfter = parseInt(response.headers.get("Retry-After") || "5", 10);
+    // Only retry if wait is short (max 10s). If Spotify says wait hours, just fail immediately.
+    if (retryAfter <= 10) {
+      console.log(`[Spotify] 429 on ${endpoint} — waiting ${retryAfter}s then retrying...`);
+      await new Promise(resolve => setTimeout(resolve, retryAfter * 1000));
+      return spotifyFetch<T>(endpoint, accessToken, params, retryAttempt + 1);
+    }
+    console.warn(`[Spotify] 429 on ${endpoint} — Retry-After too long (${retryAfter}s), failing immediately`);
+  }
 
   if (!response.ok) {
     const error = await response.text();
