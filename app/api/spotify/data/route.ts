@@ -10,8 +10,8 @@ import {
 
 // ─── In-memory cache to prevent Spotify rate limiting ────────────────────────
 const cache = new Map<string, { data: unknown; expiry: number }>();
-const CACHE_TTL_MS = 5 * 60 * 1000; // 5 minutes
-const RATE_LIMIT_BACKOFF_MS = 2 * 60 * 1000; // 2 minutes backoff on 429
+const CACHE_TTL_MS = 10 * 60 * 1000; // 10 minutes cache
+const RATE_LIMIT_BACKOFF_MS = 30 * 60 * 1000; // 30 minutes backoff on 429
 
 // Track when we're rate limited — don't hit Spotify at all during backoff
 let rateLimitedUntil = 0;
