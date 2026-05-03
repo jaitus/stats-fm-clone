@@ -9,23 +9,36 @@ import {
 } from "@/lib/spotify";
 
 // ─── In-memory cache to prevent Spotify rate limiting ────────────────────────
-// Cache responses for 5 minutes — prevents repeated API hits on page refreshes
 const cache = new Map<string, { data: unknown; expiry: number }>();
 const CACHE_TTL_MS = 5 * 60 * 1000; // 5 minutes
+const RATE_LIMIT_BACKOFF_MS = 2 * 60 * 1000; // 2 minutes backoff on 429
+
+// Track when we're rate limited — don't hit Spotify at all during backoff
+let rateLimitedUntil = 0;
 
 function getCached<T>(key: string): T | null {
   const entry = cache.get(key);
   if (entry && Date.now() < entry.expiry) {
-    console.log(`[Cache] HIT: ${key}`);
     return entry.data as T;
   }
-  if (entry) cache.delete(key); // expired
+  if (entry) cache.delete(key);
   return null;
 }
 
-function setCache(key: string, data: unknown): void {
-  cache.set(key, { data, expiry: Date.now() + CACHE_TTL_MS });
-  console.log(`[Cache] SET: ${key} (expires in ${CACHE_TTL_MS / 1000}s)`);
+function setCache(key: string, data: unknown, ttl: number = CACHE_TTL_MS): void {
+  cache.set(key, { data, expiry: Date.now() + ttl });
+}
+
+// Default empty responses for each endpoint type
+function getEmptyResponse(endpoint: string): unknown {
+  switch (endpoint) {
+    case "profile": return null;
+    case "top-tracks": return [];
+    case "top-artists": return [];
+    case "recently-played": return [];
+    case "audio-features": return [];
+    default: return null;
+  }
 }
 
 export async function GET(request: NextRequest) {
@@ -38,16 +51,22 @@ export async function GET(request: NextRequest) {
   const searchParams = request.nextUrl.searchParams;
   const endpoint = searchParams.get("endpoint");
   const timeRange = (searchParams.get("time_range") || "medium_term") as TimeRange;
-
-  // Build cache key from endpoint + params
   const cacheKey = `${endpoint}:${timeRange}:${searchParams.get("ids")?.slice(0, 20) || ""}`;
 
-  // Check cache first
+  // 1. Check cache first
   const cached = getCached(cacheKey);
   if (cached !== null) {
     return NextResponse.json(cached);
   }
 
+  // 2. If we're in rate-limit backoff, return empty data immediately (don't hit Spotify)
+  if (Date.now() < rateLimitedUntil) {
+    console.log(`[Spotify] Rate limit backoff active (${Math.round((rateLimitedUntil - Date.now()) / 1000)}s remaining) — returning empty for ${endpoint}`);
+    const empty = getEmptyResponse(endpoint || "");
+    return NextResponse.json(empty);
+  }
+
+  // 3. Fetch from Spotify
   try {
     let result: unknown;
 
@@ -76,7 +95,7 @@ export async function GET(request: NextRequest) {
         try {
           result = await getAudioFeatures(accessToken, ids.split(","));
         } catch {
-          console.warn("[Spotify API] Audio features unavailable (403) — returning empty array");
+          console.warn("[Spotify API] Audio features unavailable — returning empty array");
           result = [];
         }
         break;
@@ -85,23 +104,24 @@ export async function GET(request: NextRequest) {
         return NextResponse.json({ error: "Invalid endpoint" }, { status: 400 });
     }
 
-    // Cache the successful response
+    // Cache successful response
     setCache(cacheKey, result);
     return NextResponse.json(result);
   } catch (err) {
     console.error("[Spotify API] Error:", err);
 
-    // If token expired, tell client to refresh
+    // Token expired — tell client to refresh
     if (err instanceof Error && err.message.includes("401")) {
       return NextResponse.json({ error: "Token expired", code: "TOKEN_EXPIRED" }, { status: 401 });
     }
 
-    // If rate limited, tell client to wait
+    // Rate limited — activate backoff, return empty data so dashboard still renders
     if (err instanceof Error && err.message.includes("429")) {
-      return NextResponse.json(
-        { error: "Spotify rate limit reached. Please wait a moment and refresh.", code: "RATE_LIMITED" },
-        { status: 429, headers: { "Retry-After": "30" } }
-      );
+      rateLimitedUntil = Date.now() + RATE_LIMIT_BACKOFF_MS;
+      console.warn(`[Spotify] Rate limited! Backing off for ${RATE_LIMIT_BACKOFF_MS / 1000}s. No more Spotify calls until ${new Date(rateLimitedUntil).toISOString()}`);
+      const empty = getEmptyResponse(endpoint || "");
+      setCache(cacheKey, empty, RATE_LIMIT_BACKOFF_MS); // cache the empty response during backoff
+      return NextResponse.json(empty);
     }
 
     return NextResponse.json({ error: "API request failed" }, { status: 500 });
