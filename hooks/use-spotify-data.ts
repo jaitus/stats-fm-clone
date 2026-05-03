@@ -18,29 +18,27 @@ async function fetchSpotifyData<T>(
   const response = await fetch(`/api/spotify/data?${searchParams.toString()}`);
 
   if (!response.ok) {
-    const data = await response.json();
-
-    // Try to refresh token if expired
-    if (data.code === "TOKEN_EXPIRED") {
-      const refreshResponse = await fetch("/api/spotify/refresh", {
-        method: "POST",
-      });
-
+    // Any auth failure (401) — fall back to demo data
+    if (response.status === 401) {
+      // Try token refresh first
+      const refreshResponse = await fetch("/api/spotify/refresh", { method: "POST" });
       if (refreshResponse.ok) {
-        // Retry the original request
-        const retryResponse = await fetch(
-          `/api/spotify/data?${searchParams.toString()}`
-        );
+        const retryResponse = await fetch(`/api/spotify/data?${searchParams.toString()}`);
         if (retryResponse.ok) {
           return retryResponse.json() as Promise<T>;
         }
       }
 
-      // If refresh failed, redirect to re-authenticate
-      window.location.href = "/api/auth/spotify";
-      throw new Error("Token refresh failed");
+      // Refresh failed or no token — use demo data
+      console.log("[Demo] No auth, loading demo data...");
+      const demoParams = new URLSearchParams({ endpoint, ...params, demo: "true" });
+      const demoResponse = await fetch(`/api/spotify/data?${demoParams.toString()}`);
+      if (demoResponse.ok) {
+        return demoResponse.json() as Promise<T>;
+      }
     }
 
+    const data = await response.json().catch(() => ({}));
     throw new Error(data.error || "API request failed");
   }
 
