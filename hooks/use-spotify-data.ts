@@ -12,13 +12,22 @@ import type {
 
 async function fetchSpotifyData<T>(
   endpoint: string,
-  params?: Record<string, string>
+  params?: Record<string, string>,
+  retryCount: number = 0
 ): Promise<T> {
   const searchParams = new URLSearchParams({ endpoint, ...params });
   const response = await fetch(`/api/spotify/data?${searchParams.toString()}`);
 
   if (!response.ok) {
     const data = await response.json();
+
+    // Auto-retry on rate limit (max 2 retries)
+    if (data.code === "RATE_LIMITED" && retryCount < 2) {
+      const waitMs = (retryCount + 1) * 5000; // 5s, then 10s
+      console.log(`[Spotify] Rate limited, retrying in ${waitMs / 1000}s...`);
+      await new Promise(resolve => setTimeout(resolve, waitMs));
+      return fetchSpotifyData<T>(endpoint, params, retryCount + 1);
+    }
 
     // Try to refresh token if expired
     if (data.code === "TOKEN_EXPIRED") {

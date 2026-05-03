@@ -62,6 +62,14 @@ export async function GET(request: NextRequest) {
       return NextResponse.json({ error: "Token expired", code: "TOKEN_EXPIRED" }, { status: 401 });
     }
 
+    // If rate limited, tell client to wait
+    if (err instanceof Error && err.message.includes("429")) {
+      return NextResponse.json(
+        { error: "Spotify rate limit reached. Please wait a moment and refresh.", code: "RATE_LIMITED" },
+        { status: 429, headers: { "Retry-After": "30" } }
+      );
+    }
+
     return NextResponse.json({ error: "API request failed" }, { status: 500 });
   }
 }
