@@ -210,14 +210,17 @@ export async function getTopArtists(
 
   // Spotify sometimes returns simplified artist objects (missing genres, popularity).
   // Enrich with full artist data if needed.
-  if (items.length > 0 && items[0].genres === undefined) {
+  const needsEnrichment = items.length > 0 && (!items[0].genres || items[0].genres.length === 0);
+  console.log(`[Spotify] Top artists: ${items.length} items, first genres:`, JSON.stringify(items[0]?.genres), needsEnrichment ? "→ enriching" : "→ already have genres");
+  if (needsEnrichment) {
     try {
       const enriched = await getFullArtists(accessToken, items.map(a => a.id));
+      console.log(`[Spotify] Enriched ${enriched.length} artists, first has ${enriched[0]?.genres?.length || 0} genres`);
       // Preserve the original order
       const enrichedMap = new Map(enriched.map(a => [a.id, a]));
       return items.map(a => enrichedMap.get(a.id) || a);
-    } catch {
-      // If enrichment fails, return what we have
+    } catch (err) {
+      console.error("[Spotify] Artist enrichment failed:", err);
       return items;
     }
   }
@@ -229,16 +232,23 @@ async function getFullArtists(
   accessToken: string,
   artistIds: string[]
 ): Promise<SpotifyArtist[]> {
-  // Spotify allows max 50 IDs per request
+  // Spotify /artists endpoint: GET https://api.spotify.com/v1/artists?ids=id1,id2,...
   const results: SpotifyArtist[] = [];
   for (let i = 0; i < artistIds.length; i += 50) {
     const chunk = artistIds.slice(i, i + 50);
-    const data = await spotifyFetch<{ artists: SpotifyArtist[] }>(
-      "/artists",
-      accessToken,
-      { ids: chunk.join(",") }
-    );
-    results.push(...(data.artists || []));
+    const url = `https://api.spotify.com/v1/artists?ids=${chunk.join(",")}`;
+    const response = await fetch(url, {
+      headers: { Authorization: `Bearer ${accessToken}` },
+    });
+
+    if (!response.ok) {
+      const errText = await response.text();
+      console.error(`[Spotify] /artists failed (${response.status}):`, errText);
+      throw new Error(`Artist enrichment failed: ${response.status}`);
+    }
+
+    const body = await response.json() as { artists: SpotifyArtist[] };
+    results.push(...(body.artists || []));
   }
   return results;
 }
@@ -281,15 +291,26 @@ export async function getAudioFeatures(
 // ─── Derived Analytics ───────────────────────────────────────────────────────
 
 export function calculateGenreDistribution(
-  artists: SpotifyArtist[]
+  artists: SpotifyArtist[],
+  tracks?: SpotifyTrack[]
 ): { genre: string; count: number; percentage: number }[] {
   if (!artists || !Array.isArray(artists)) return [];
   const genreCounts: Record<string, number> = {};
+  
+  // Try artist genres first
   artists.forEach((artist) => {
     (artist.genres || []).forEach((genre) => {
       genreCounts[genre] = (genreCounts[genre] || 0) + 1;
     });
   });
+
+  // If no genres found from artists, infer from track/artist names
+  if (Object.keys(genreCounts).length === 0 && tracks && tracks.length > 0) {
+    const inferredGenres = inferGenresFromTracks(tracks, artists);
+    inferredGenres.forEach((genre) => {
+      genreCounts[genre] = (genreCounts[genre] || 0) + 1;
+    });
+  }
 
   const total = Object.values(genreCounts).reduce((a, b) => a + b, 0);
   if (total === 0) return [];
@@ -300,6 +321,79 @@ export function calculateGenreDistribution(
       percentage: Math.round((count / total) * 100),
     }))
     .sort((a, b) => b.count - a.count);
+}
+
+// Genre inference from track names and artist names when Spotify API doesn't provide genres
+function inferGenresFromTracks(tracks: SpotifyTrack[], artists: SpotifyArtist[]): string[] {
+  const genres: string[] = [];
+  const allArtistNames = artists.map(a => a.name.toLowerCase());
+  const allTrackNames = tracks.map(t => t.name.toLowerCase());
+  const allAlbumNames = tracks.map(t => t.album?.name?.toLowerCase() || "");
+  const combined = [...allArtistNames, ...allTrackNames, ...allAlbumNames].join(" ");
+
+  // Genre keyword mapping — maps patterns in artist/track names to genre labels
+  const genreRules: [RegExp, string][] = [
+    // Pop
+    [/taylor swift|ariana grande|dua lipa|sabrina carpenter|billie eilish|olivia rodrigo|selena gomez|justin bieber|ed sheeran|shawn mendes|charlie puth|benson boone|gracie abrams|chappell roan/, "pop"],
+    // Hip-Hop / Rap
+    [/drake|kendrick|kanye|travis scott|21 savage|metro boomin|future|lil|j\. cole|eminem|post malone|juice wrld|xxxtentacion|nf\b|youngboy/, "hip hop"],
+    [/rap|trap|drill/, "rap"],
+    // R&B
+    [/the weeknd|sza|frank ocean|daniel caesar|khalid|h\.e\.r\.|bryson tiller|brent faiyaz|summer walker|6lack/, "r&b"],
+    // Rock
+    [/arctic monkeys|imagine dragons|linkin park|green day|nirvana|foo fighters|queen|acdc|metallica|guns n|led zeppelin|pink floyd|radiohead|coldplay/, "rock"],
+    [/indie|arctic|tame impala|glass animals|wallows|the neighbourhood|mac demarco/, "indie"],
+    // Electronic
+    [/martin garrix|avicii|marshmello|deadmau5|skrillex|zedd|alan walker|kygo|tiesto|david guetta|calvin harris|the chainsmokers/, "electronic"],
+    [/edm|dubstep|house music|trance/, "electronic"],
+    // K-Pop
+    [/bts\b|blackpink|stray kids|enhypen|twice|aespa|itzy|nct|seventeen|txt\b|ateez|le sserafim|ive\b|newjeans/, "k-pop"],
+    // Latin
+    [/bad bunny|j balvin|ozuna|daddy yankee|shakira|rosalia|maluma|karol g|rauw alejandro|peso pluma|feid/, "latin"],
+    [/reggaeton|bachata|salsa/, "latin"],
+    // Country
+    [/morgan wallen|luke combs|chris stapleton|zach bryan|hardy|jason aldean|luke bryan/, "country"],
+    // Classical / Jazz
+    [/beethoven|mozart|chopin|debussy|tchaikovsky|vivaldi|bach\b/, "classical"],
+    [/miles davis|john coltrane|louis armstrong|ella fitzgerald|norah jones/, "jazz"],
+    // Bollywood / Indian
+    [/arijit|pritam|shreya ghoshal|atif aslam|a\.r\. rahman|vishal|neha kakkar|badshah|honey singh|ap dhillon|diljit|bollywood|desi|bhangra/, "bollywood"],
+    [/punjabi|hindi|tamil|telugu/, "indian"],
+    // Alt / Indie
+    [/lorde|phoebe bridgers|mitski|boygenius|japanese breakfast|beabadoobee|clairo|faye webster/, "indie pop"],
+    // Metal
+    [/slipknot|bring me the horizon|a day to remember|avenged sevenfold|five finger death punch/, "metal"],
+    // Soul / Funk
+    [/stevie wonder|marvin gaye|aretha franklin|james brown|earth wind|doja cat/, "soul"],
+    // Folk
+    [/mumford|fleet foxes|bon iver|iron \u0026 wine|jose gonzalez|vance joy|hozier/, "folk"],
+    // Ambient / Chill
+    [/lo-?fi|chill|ambient|sleep|meditation|study/, "lo-fi"],
+    // Anime
+    [/anime|openin|naruto|one piece|attack on titan|jujutsu/, "anime"],
+  ];
+
+  // Score each genre
+  for (const [pattern, genre] of genreRules) {
+    if (pattern.test(combined)) {
+      // Add multiple times based on how many artists/tracks match
+      const matchCount = allArtistNames.filter(n => pattern.test(n)).length
+        + allTrackNames.filter(n => pattern.test(n)).length * 0.5;
+      for (let i = 0; i < Math.max(1, Math.round(matchCount)); i++) {
+        genres.push(genre);
+      }
+    }
+  }
+
+  // If still nothing, add a fallback based on popularity patterns
+  if (genres.length === 0) {
+    const avgPopularity = tracks.reduce((sum, t) => sum + (t.popularity || 0), 0) / tracks.length;
+    if (avgPopularity > 70) genres.push("pop", "mainstream");
+    else if (avgPopularity > 40) genres.push("indie", "alternative");
+    else genres.push("underground", "niche");
+  }
+
+  return genres;
 }
 
 export function calculateGenreDiversity(artists: SpotifyArtist[]): number {

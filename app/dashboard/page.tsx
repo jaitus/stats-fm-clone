@@ -98,9 +98,9 @@ export default function DashboardPage() {
   }, [timeRange]);
 
   // Derived data
-  const genreDistribution = calculateGenreDistribution(topArtists);
+  const genreDistribution = calculateGenreDistribution(topArtists, topTracks);
   const genreDiversity = calculateGenreDiversity(topArtists);
-  const allGenres = topArtists.flatMap(a => a.genres || []);
+  const allGenres = genreDistribution.map(g => g.genre);
   const moodScore = calculateMoodScore(audioFeatures, allGenres);
   const heatmapData = buildListeningHeatmap(recentlyPlayed);
   const personality = getPersonalityType(
