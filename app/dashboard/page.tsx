@@ -100,7 +100,8 @@ export default function DashboardPage() {
   // Derived data
   const genreDistribution = calculateGenreDistribution(topArtists);
   const genreDiversity = calculateGenreDiversity(topArtists);
-  const moodScore = calculateMoodScore(audioFeatures);
+  const allGenres = topArtists.flatMap(a => a.genres || []);
+  const moodScore = calculateMoodScore(audioFeatures, allGenres);
   const heatmapData = buildListeningHeatmap(recentlyPlayed);
   const personality = getPersonalityType(
     genreDiversity,

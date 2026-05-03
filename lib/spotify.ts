@@ -205,7 +205,42 @@ export async function getTopArtists(
     accessToken,
     { time_range: timeRange, limit: limit.toString() }
   );
-  return data.items;
+
+  const items = data.items || [];
+
+  // Spotify sometimes returns simplified artist objects (missing genres, popularity).
+  // Enrich with full artist data if needed.
+  if (items.length > 0 && items[0].genres === undefined) {
+    try {
+      const enriched = await getFullArtists(accessToken, items.map(a => a.id));
+      // Preserve the original order
+      const enrichedMap = new Map(enriched.map(a => [a.id, a]));
+      return items.map(a => enrichedMap.get(a.id) || a);
+    } catch {
+      // If enrichment fails, return what we have
+      return items;
+    }
+  }
+
+  return items;
+}
+
+async function getFullArtists(
+  accessToken: string,
+  artistIds: string[]
+): Promise<SpotifyArtist[]> {
+  // Spotify allows max 50 IDs per request
+  const results: SpotifyArtist[] = [];
+  for (let i = 0; i < artistIds.length; i += 50) {
+    const chunk = artistIds.slice(i, i + 50);
+    const data = await spotifyFetch<{ artists: SpotifyArtist[] }>(
+      "/artists",
+      accessToken,
+      { ids: chunk.join(",") }
+    );
+    results.push(...(data.artists || []));
+  }
+  return results;
 }
 
 export async function getRecentlyPlayed(
@@ -282,7 +317,10 @@ export function calculateGenreDiversity(artists: SpotifyArtist[]): number {
   return maxEntropy > 0 ? Math.round((entropy / maxEntropy) * 100) : 0;
 }
 
-export function calculateMoodScore(features: SpotifyAudioFeatures[]): {
+export function calculateMoodScore(
+  features: SpotifyAudioFeatures[],
+  genresFallback?: string[]
+): {
   overall: number;
   danceability: number;
   energy: number;
@@ -292,15 +330,8 @@ export function calculateMoodScore(features: SpotifyAudioFeatures[]): {
   label: string;
 } {
   if (features.length === 0) {
-    return {
-      overall: 0,
-      danceability: 0,
-      energy: 0,
-      valence: 0,
-      acousticness: 0,
-      instrumentalness: 0,
-      label: "Unknown",
-    };
+    // Estimate mood from genres if audio features unavailable
+    return estimateMoodFromGenres(genresFallback || []);
   }
 
   const avg = (key: keyof SpotifyAudioFeatures) =>
@@ -345,6 +376,79 @@ export function buildListeningHeatmap(
   });
 
   return heatmap;
+}
+
+function estimateMoodFromGenres(genres: string[]): {
+  overall: number;
+  danceability: number;
+  energy: number;
+  valence: number;
+  acousticness: number;
+  instrumentalness: number;
+  label: string;
+} {
+  if (genres.length === 0) {
+    return {
+      overall: 50, danceability: 50, energy: 50, valence: 50,
+      acousticness: 30, instrumentalness: 10, label: "Balanced",
+    };
+  }
+
+  const all = genres.map(g => g.toLowerCase()).join(" ");
+
+  // Heuristic scoring based on genre keywords
+  let danceability = 50, energy = 50, valence = 50, acousticness = 30, instrumentalness = 10;
+
+  // High energy genres
+  if (/metal|punk|hardcore|thrash|death|grindcore/.test(all)) { energy += 30; valence -= 15; }
+  if (/edm|electronic|techno|house|trance|dubstep|drum and bass|dnb/.test(all)) { energy += 25; danceability += 25; }
+  if (/rock|alternative|grunge|indie rock/.test(all)) { energy += 15; }
+
+  // Dance genres
+  if (/pop|dance|disco|funk|latin|reggaeton|salsa/.test(all)) { danceability += 20; valence += 15; }
+  if (/hip hop|rap|trap/.test(all)) { danceability += 15; energy += 10; }
+  if (/r&b|soul|neo soul/.test(all)) { danceability += 10; valence += 10; }
+
+  // Happy/positive genres
+  if (/pop|k-pop|j-pop|sunshine|happy/.test(all)) { valence += 20; }
+  if (/reggae|ska|tropical/.test(all)) { valence += 15; acousticness += 10; }
+
+  // Sad/mellow genres
+  if (/sad|emo|shoegaze|slowcore|doom/.test(all)) { valence -= 20; energy -= 10; }
+  if (/ambient|chill|lo-fi|lofi|downtempo/.test(all)) { energy -= 20; acousticness += 15; valence -= 5; }
+
+  // Acoustic genres
+  if (/acoustic|folk|singer-songwriter|country|bluegrass/.test(all)) { acousticness += 30; energy -= 10; }
+  if (/classical|piano|orchestra|chamber/.test(all)) { acousticness += 25; instrumentalness += 30; energy -= 15; }
+  if (/jazz|bossa nova|smooth jazz/.test(all)) { acousticness += 20; instrumentalness += 15; }
+
+  // Instrumental genres
+  if (/instrumental|post-rock|soundtrack|score|new age/.test(all)) { instrumentalness += 25; }
+
+  // Bollywood / Indian
+  if (/bollywood|desi|indian|filmi|bhangra/.test(all)) { danceability += 15; valence += 10; energy += 10; }
+
+  // Clamp values
+  const clamp = (v: number) => Math.max(5, Math.min(95, v));
+  danceability = clamp(danceability);
+  energy = clamp(energy);
+  valence = clamp(valence);
+  acousticness = clamp(acousticness);
+  instrumentalness = clamp(instrumentalness);
+
+  const overall = Math.round(valence * 0.4 + energy * 0.3 + danceability * 0.3);
+
+  let label: string;
+  if (valence > 65 && energy > 65) label = "Euphoric";
+  else if (valence > 65 && energy <= 65) label = "Chill & Happy";
+  else if (valence <= 35 && energy > 65) label = "Intense";
+  else if (valence <= 35 && energy <= 35) label = "Melancholic";
+  else if (energy > 70) label = "Energetic";
+  else if (acousticness > 60) label = "Acoustic Soul";
+  else if (danceability > 70) label = "Groovy";
+  else label = "Balanced";
+
+  return { overall, danceability, energy, valence, acousticness, instrumentalness, label };
 }
 
 export function getPersonalityType(
