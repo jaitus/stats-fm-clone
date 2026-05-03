@@ -248,14 +248,16 @@ export async function getAudioFeatures(
 export function calculateGenreDistribution(
   artists: SpotifyArtist[]
 ): { genre: string; count: number; percentage: number }[] {
+  if (!artists || !Array.isArray(artists)) return [];
   const genreCounts: Record<string, number> = {};
   artists.forEach((artist) => {
-    artist.genres.forEach((genre) => {
+    (artist.genres || []).forEach((genre) => {
       genreCounts[genre] = (genreCounts[genre] || 0) + 1;
     });
   });
 
   const total = Object.values(genreCounts).reduce((a, b) => a + b, 0);
+  if (total === 0) return [];
   return Object.entries(genreCounts)
     .map(([genre, count]) => ({
       genre,
