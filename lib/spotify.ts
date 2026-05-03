@@ -249,11 +249,11 @@ export function calculateGenreDistribution(
   artists: SpotifyArtist[],
   tracks?: SpotifyTrack[]
 ): { genre: string; count: number; percentage: number }[] {
-  if (!artists || !Array.isArray(artists)) return [];
+  const safeArtists = Array.isArray(artists) ? artists : [];
   const genreCounts: Record<string, number> = {};
   
   // Try artist genres first
-  artists.forEach((artist) => {
+  safeArtists.forEach((artist) => {
     (artist.genres || []).forEach((genre) => {
       genreCounts[genre] = (genreCounts[genre] || 0) + 1;
     });
@@ -261,7 +261,7 @@ export function calculateGenreDistribution(
 
   // If no genres found from artists, infer from track/artist names
   if (Object.keys(genreCounts).length === 0 && tracks && tracks.length > 0) {
-    const inferredGenres = inferGenresFromTracks(tracks, artists);
+    const inferredGenres = inferGenresFromTracks(tracks, safeArtists);
     inferredGenres.forEach((genre) => {
       genreCounts[genre] = (genreCounts[genre] || 0) + 1;
     });
@@ -281,8 +281,11 @@ export function calculateGenreDistribution(
 // Genre inference from track names and artist names when Spotify API doesn't provide genres
 function inferGenresFromTracks(tracks: SpotifyTrack[], artists: SpotifyArtist[]): string[] {
   const genres: string[] = [];
-  const allArtistNames = artists.map(a => a.name.toLowerCase());
-  const allTrackNames = tracks.map(t => t.name.toLowerCase());
+  // Use both top artist names AND artist names embedded in tracks
+  const topArtistNames = artists.map(a => a.name.toLowerCase());
+  const trackArtistNames = tracks.flatMap(t => (t.artists || []).map(a => a.name.toLowerCase()));
+  const allArtistNames = [...new Set([...topArtistNames, ...trackArtistNames])];
+  const allTrackNames = tracks.map(t => (t.name || "").toLowerCase());
   const allAlbumNames = tracks.map(t => t.album?.name?.toLowerCase() || "");
   const combined = [...allArtistNames, ...allTrackNames, ...allAlbumNames].join(" ");
 
@@ -326,6 +329,14 @@ function inferGenresFromTracks(tracks: SpotifyTrack[], artists: SpotifyArtist[])
     [/lo-?fi|chill|ambient|sleep|meditation|study/, "lo-fi"],
     // Anime
     [/anime|openin|naruto|one piece|attack on titan|jujutsu/, "anime"],
+    // Art pop / Experimental
+    [/kate bush|bjork|fka twigs|st\. vincent|aurora|lana del rey|florence|weyes blood|soap\u0026skin|soap&skin/, "art pop"],
+    // French pop
+    [/indila|stromae|edith piaf|zaz\b|aya nakamura|angele/, "french pop"],
+    // Film / Soundtrack
+    [/soundtrack|score|hans zimmer|ennio|original motion|theme from/, "soundtrack"],
+    // Retro / Vintage
+    [/patience \u0026 prudence|patience & prudence|doris day|frank sinatra|dean martin|nat king|ella fitzgerald|oldies/, "retro"],
   ];
 
   // Score each genre
@@ -340,12 +351,13 @@ function inferGenresFromTracks(tracks: SpotifyTrack[], artists: SpotifyArtist[])
     }
   }
 
-  // If still nothing, add a fallback based on popularity patterns
+  // Always produce at least some results based on popularity
   if (genres.length === 0) {
-    const avgPopularity = tracks.reduce((sum, t) => sum + (t.popularity || 0), 0) / tracks.length;
-    if (avgPopularity > 70) genres.push("pop", "mainstream");
-    else if (avgPopularity > 40) genres.push("indie", "alternative");
-    else genres.push("underground", "niche");
+    const avgPopularity = tracks.reduce((sum, t) => sum + (t.popularity || 0), 0) / (tracks.length || 1);
+    if (avgPopularity > 70) { genres.push("pop", "pop", "mainstream"); }
+    else if (avgPopularity > 50) { genres.push("pop", "indie pop"); }
+    else if (avgPopularity > 30) { genres.push("indie", "alternative", "underground"); }
+    else { genres.push("underground", "niche", "experimental"); }
   }
 
   return genres;
