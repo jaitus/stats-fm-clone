@@ -205,52 +205,7 @@ export async function getTopArtists(
     accessToken,
     { time_range: timeRange, limit: limit.toString() }
   );
-
-  const items = data.items || [];
-
-  // Spotify sometimes returns simplified artist objects (missing genres, popularity).
-  // Enrich with full artist data if needed.
-  const needsEnrichment = items.length > 0 && (!items[0].genres || items[0].genres.length === 0);
-  console.log(`[Spotify] Top artists: ${items.length} items, first genres:`, JSON.stringify(items[0]?.genres), needsEnrichment ? "→ enriching" : "→ already have genres");
-  if (needsEnrichment) {
-    try {
-      const enriched = await getFullArtists(accessToken, items.map(a => a.id));
-      console.log(`[Spotify] Enriched ${enriched.length} artists, first has ${enriched[0]?.genres?.length || 0} genres`);
-      // Preserve the original order
-      const enrichedMap = new Map(enriched.map(a => [a.id, a]));
-      return items.map(a => enrichedMap.get(a.id) || a);
-    } catch (err) {
-      console.error("[Spotify] Artist enrichment failed:", err);
-      return items;
-    }
-  }
-
-  return items;
-}
-
-async function getFullArtists(
-  accessToken: string,
-  artistIds: string[]
-): Promise<SpotifyArtist[]> {
-  // Spotify /artists endpoint: GET https://api.spotify.com/v1/artists?ids=id1,id2,...
-  const results: SpotifyArtist[] = [];
-  for (let i = 0; i < artistIds.length; i += 50) {
-    const chunk = artistIds.slice(i, i + 50);
-    const url = `https://api.spotify.com/v1/artists?ids=${chunk.join(",")}`;
-    const response = await fetch(url, {
-      headers: { Authorization: `Bearer ${accessToken}` },
-    });
-
-    if (!response.ok) {
-      const errText = await response.text();
-      console.error(`[Spotify] /artists failed (${response.status}):`, errText);
-      throw new Error(`Artist enrichment failed: ${response.status}`);
-    }
-
-    const body = await response.json() as { artists: SpotifyArtist[] };
-    results.push(...(body.artists || []));
-  }
-  return results;
+  return data.items || [];
 }
 
 export async function getRecentlyPlayed(

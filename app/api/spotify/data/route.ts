@@ -8,6 +8,26 @@ import {
   type TimeRange,
 } from "@/lib/spotify";
 
+// ─── In-memory cache to prevent Spotify rate limiting ────────────────────────
+// Cache responses for 5 minutes — prevents repeated API hits on page refreshes
+const cache = new Map<string, { data: unknown; expiry: number }>();
+const CACHE_TTL_MS = 5 * 60 * 1000; // 5 minutes
+
+function getCached<T>(key: string): T | null {
+  const entry = cache.get(key);
+  if (entry && Date.now() < entry.expiry) {
+    console.log(`[Cache] HIT: ${key}`);
+    return entry.data as T;
+  }
+  if (entry) cache.delete(key); // expired
+  return null;
+}
+
+function setCache(key: string, data: unknown): void {
+  cache.set(key, { data, expiry: Date.now() + CACHE_TTL_MS });
+  console.log(`[Cache] SET: ${key} (expires in ${CACHE_TTL_MS / 1000}s)`);
+}
+
 export async function GET(request: NextRequest) {
   const accessToken = request.cookies.get("spotify_access_token")?.value;
 
@@ -19,23 +39,34 @@ export async function GET(request: NextRequest) {
   const endpoint = searchParams.get("endpoint");
   const timeRange = (searchParams.get("time_range") || "medium_term") as TimeRange;
 
+  // Build cache key from endpoint + params
+  const cacheKey = `${endpoint}:${timeRange}:${searchParams.get("ids")?.slice(0, 20) || ""}`;
+
+  // Check cache first
+  const cached = getCached(cacheKey);
+  if (cached !== null) {
+    return NextResponse.json(cached);
+  }
+
   try {
+    let result: unknown;
+
     switch (endpoint) {
       case "profile": {
-        const profile = await getUserProfile(accessToken);
-        return NextResponse.json(profile);
+        result = await getUserProfile(accessToken);
+        break;
       }
       case "top-tracks": {
-        const tracks = await getTopTracks(accessToken, timeRange, 50);
-        return NextResponse.json(tracks);
+        result = await getTopTracks(accessToken, timeRange, 50);
+        break;
       }
       case "top-artists": {
-        const artists = await getTopArtists(accessToken, timeRange, 50);
-        return NextResponse.json(artists);
+        result = await getTopArtists(accessToken, timeRange, 50);
+        break;
       }
       case "recently-played": {
-        const recent = await getRecentlyPlayed(accessToken, 50);
-        return NextResponse.json(recent);
+        result = await getRecentlyPlayed(accessToken, 50);
+        break;
       }
       case "audio-features": {
         const ids = searchParams.get("ids");
@@ -43,17 +74,20 @@ export async function GET(request: NextRequest) {
           return NextResponse.json({ error: "Missing track IDs" }, { status: 400 });
         }
         try {
-          const features = await getAudioFeatures(accessToken, ids.split(","));
-          return NextResponse.json(features);
+          result = await getAudioFeatures(accessToken, ids.split(","));
         } catch {
-          // Audio features endpoint is restricted for many apps — gracefully return empty
           console.warn("[Spotify API] Audio features unavailable (403) — returning empty array");
-          return NextResponse.json([]);
+          result = [];
         }
+        break;
       }
       default:
         return NextResponse.json({ error: "Invalid endpoint" }, { status: 400 });
     }
+
+    // Cache the successful response
+    setCache(cacheKey, result);
+    return NextResponse.json(result);
   } catch (err) {
     console.error("[Spotify API] Error:", err);
 
