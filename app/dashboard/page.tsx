@@ -70,15 +70,16 @@ export default function DashboardPage() {
           ]);
 
         if (profileData) setProfile(profileData);
-        setTopTracks(tracksData);
-        setTopArtists(artistsData);
+        if (Array.isArray(tracksData)) setTopTracks(tracksData);
+        if (Array.isArray(artistsData)) setTopArtists(artistsData);
         if (recentData && Array.isArray(recentData)) setRecentlyPlayed(recentData);
 
         // Fetch audio features for top tracks
-        if (tracksData.length > 0) {
-          const trackIds = tracksData.map((t) => t.id);
+        const tracks = Array.isArray(tracksData) ? tracksData : [];
+        if (tracks.length > 0) {
+          const trackIds = tracks.map((t) => t.id);
           const features = await fetchAudioFeatures(trackIds);
-          setAudioFeatures(features);
+          if (Array.isArray(features)) setAudioFeatures(features);
         }
 
         setInitialLoadDone(true);

@@ -39,7 +39,7 @@ export function TopTracks({ tracks, isLoading }: TopTracksProps) {
       {tracks.map((track, index) => (
         <a
           key={track.id}
-          href={track.external_urls.spotify}
+          href={track.external_urls?.spotify || "#"}
           target="_blank"
           rel="noopener noreferrer"
           className="group glass-card rounded-xl p-3 sm:p-4 flex items-center gap-4 hover:border-primary/20 transition-all duration-200 hover:bg-white/[0.02]"
@@ -57,7 +57,7 @@ export function TopTracks({ tracks, isLoading }: TopTracksProps) {
 
           {/* Album Art */}
           <div className="relative w-12 h-12 rounded-lg overflow-hidden flex-shrink-0 bg-secondary">
-            {track.album.images[0]?.url && (
+            {track.album?.images?.[0]?.url && (
               <Image
                 src={track.album.images[0].url}
                 alt={track.album.name}
@@ -74,7 +74,7 @@ export function TopTracks({ tracks, isLoading }: TopTracksProps) {
               {track.name}
             </p>
             <p className="text-xs text-muted-foreground truncate">
-              {track.artists.map((a) => a.name).join(", ")}
+              {(track.artists || []).map((a) => a.name).join(", ")}
             </p>
           </div>
 

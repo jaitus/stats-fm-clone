@@ -33,7 +33,7 @@ export function TopArtists({ artists, isLoading }: TopArtistsProps) {
       {artists.map((artist, index) => (
         <a
           key={artist.id}
-          href={artist.external_urls.spotify}
+          href={artist.external_urls?.spotify || "#"}
           target="_blank"
           rel="noopener noreferrer"
           className="group glass-card rounded-2xl p-4 text-center hover:border-primary/20 transition-all duration-300 hover:-translate-y-1 relative"
@@ -69,7 +69,7 @@ export function TopArtists({ artists, isLoading }: TopArtistsProps) {
 
           {/* Genres */}
           <div className="mt-2 flex flex-wrap gap-1 justify-center">
-            {artist.genres.slice(0, 2).map((genre) => (
+            {(artist.genres || []).slice(0, 2).map((genre) => (
               <span
                 key={genre}
                 className="text-[10px] px-2 py-0.5 rounded-full bg-primary/10 text-primary/80 truncate max-w-full"

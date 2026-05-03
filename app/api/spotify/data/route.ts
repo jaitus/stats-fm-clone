@@ -42,8 +42,14 @@ export async function GET(request: NextRequest) {
         if (!ids) {
           return NextResponse.json({ error: "Missing track IDs" }, { status: 400 });
         }
-        const features = await getAudioFeatures(accessToken, ids.split(","));
-        return NextResponse.json(features);
+        try {
+          const features = await getAudioFeatures(accessToken, ids.split(","));
+          return NextResponse.json(features);
+        } catch {
+          // Audio features endpoint is restricted for many apps — gracefully return empty
+          console.warn("[Spotify API] Audio features unavailable (403) — returning empty array");
+          return NextResponse.json([]);
+        }
       }
       default:
         return NextResponse.json({ error: "Invalid endpoint" }, { status: 400 });
