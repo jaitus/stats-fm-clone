@@ -44,6 +44,11 @@ const nextConfig: NextConfig = {
         hostname: "*.scdn.co",
         pathname: "/**",
       },
+      {
+        protocol: "https",
+        hostname: "picsum.photos",
+        pathname: "/**",
+      },
     ],
   },
 };
