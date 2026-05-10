@@ -105,7 +105,17 @@ export default function DashboardPage() {
 
   // Derived data
   const genreDistribution = calculateGenreDistribution(topArtists, topTracks);
-  const genreDiversity = calculateGenreDiversity(topArtists);
+  // Calculate diversity from the full distribution (includes track-inferred genres)
+  const genreDiversity = (() => {
+    if (genreDistribution.length === 0) return 0;
+    const total = genreDistribution.reduce((sum, g) => sum + g.count, 0);
+    const entropy = genreDistribution.reduce((sum, g) => {
+      const p = g.count / total;
+      return sum - (p > 0 ? p * Math.log2(p) : 0);
+    }, 0);
+    const maxEntropy = Math.log2(genreDistribution.length);
+    return maxEntropy > 0 ? Math.round((entropy / maxEntropy) * 100) : 0;
+  })();
   const allGenres = genreDistribution.map(g => g.genre);
   const moodScore = calculateMoodScore(audioFeatures, allGenres);
   const heatmapData = buildListeningHeatmap(recentlyPlayed);
