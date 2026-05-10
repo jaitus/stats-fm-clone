@@ -105,6 +105,8 @@ export function TopGenres({ genres, diversity, isLoading }: TopGenresProps) {
                   color: "#fff",
                   fontSize: "13px",
                 }}
+                labelStyle={{ color: "#fff", fontWeight: 600 }}
+                itemStyle={{ color: "#1DB954" }}
                 cursor={{ fill: "rgba(255,255,255,0.03)" }}
                 formatter={(value) => [`${value} artists`, "Count"]}
               />

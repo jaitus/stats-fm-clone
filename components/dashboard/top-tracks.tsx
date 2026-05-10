@@ -84,9 +84,12 @@ export function TopTracks({ tracks, isLoading }: TopTracksProps) {
     );
   }
 
-  const totalMs = tracks.reduce((sum, t) => sum + (t.duration_ms || 0), 0);
-  const avgPopularity = Math.round(tracks.reduce((sum, t) => sum + (t.popularity || 0), 0) / tracks.length);
+  const totalMs = tracks.reduce((sum, t) => sum + (t.duration_ms ?? 0), 0);
   const uniqueArtists = new Set(tracks.flatMap(t => (t.artists || []).map(a => a.name))).size;
+  const popularityValues = tracks.map(t => Number(t.popularity) || 0).filter(p => p > 0);
+  const avgPopularity = popularityValues.length > 0
+    ? Math.round(popularityValues.reduce((a, b) => a + b, 0) / popularityValues.length)
+    : 0;
 
   return (
     <div>
@@ -216,13 +219,19 @@ export function TopTracks({ tracks, isLoading }: TopTracksProps) {
       <div className="mt-4 glass-card rounded-xl p-4 flex items-center justify-between">
         <span className="text-sm text-muted-foreground">Average Track Popularity</span>
         <div className="flex items-center gap-3">
-          <div className="w-32 h-2 bg-secondary rounded-full overflow-hidden">
-            <div
-              className="h-full bg-gradient-to-r from-primary/60 to-primary rounded-full transition-all duration-1000"
-              style={{ width: `${avgPopularity}%` }}
-            />
-          </div>
-          <span className="text-sm font-bold text-primary">{avgPopularity}%</span>
+          {avgPopularity > 0 ? (
+            <>
+              <div className="w-32 h-2 bg-secondary rounded-full overflow-hidden">
+                <div
+                  className="h-full bg-gradient-to-r from-primary/60 to-primary rounded-full transition-all duration-1000"
+                  style={{ width: `${avgPopularity}%` }}
+                />
+              </div>
+              <span className="text-sm font-bold text-primary">{avgPopularity}%</span>
+            </>
+          ) : (
+            <span className="text-sm text-muted-foreground italic">Not available</span>
+          )}
         </div>
       </div>
     </div>
