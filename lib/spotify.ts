@@ -173,7 +173,7 @@ async function spotifyFetch<T>(
     const retryAfter = parseInt(response.headers.get("Retry-After") || "5", 10);
     // Only retry if wait is short (max 10s). If Spotify says wait hours, just fail immediately.
     if (retryAfter <= 10) {
-      console.log(`[Spotify] 429 on ${endpoint} — waiting ${retryAfter}s then retrying...`);
+      // Short retry — wait and try again
       await new Promise(resolve => setTimeout(resolve, retryAfter * 1000));
       return spotifyFetch<T>(endpoint, accessToken, params, retryAttempt + 1);
     }

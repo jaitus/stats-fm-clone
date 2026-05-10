@@ -108,7 +108,7 @@ export function TopGenres({ genres, diversity, isLoading }: TopGenresProps) {
                 cursor={{ fill: "rgba(255,255,255,0.03)" }}
                 formatter={(value) => [`${value} artists`, "Count"]}
               />
-              <Bar dataKey="count" radius={[0, 6, 6, 0]} maxBarSize={24}>
+              <Bar dataKey="count" radius={[0, 6, 6, 0]} maxBarSize={24} animationDuration={800} animationBegin={100} animationEasing="ease-out">
                 {topGenres.map((_, index) => (
                   <Cell
                     key={index}

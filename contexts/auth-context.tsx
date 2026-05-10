@@ -30,7 +30,6 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     // Get initial user
     const init = async () => {
       try {
-        console.log('[AuthContext] Initializing...')
 
         // First check if there's a session (won't throw if no session exists)
         const { data: { session }, error: sessionError } = await supabase.auth.getSession()
@@ -50,11 +49,9 @@ export function AuthProvider({ children }: { children: ReactNode }) {
             console.error('[AuthContext] Error getting user:', userError)
             setUser(null)
           } else {
-            console.log('[AuthContext] User:', user ? user.id : 'none')
             setUser(user)
           }
         } else {
-          console.log('[AuthContext] No session found')
           setUser(null)
         }
 
@@ -72,7 +69,6 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     const {
       data: { subscription },
     } = supabase.auth.onAuthStateChange((_event, session) => {
-      console.log('[AuthContext] Auth state changed:', session?.user ? session.user.id : 'logged out')
       setUser(session?.user ?? null)
       setIsLoading(false)
     })

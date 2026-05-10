@@ -82,7 +82,7 @@ export async function GET(request: NextRequest) {
 
   // ─── Rate limit backoff ────────────────────────────────────────────────
   if (Date.now() < rateLimitedUntil) {
-    console.log(`[Spotify] Rate limit backoff active — returning demo data for ${endpoint}`);
+    // Return demo data during backoff
     const demo = getDemoResponse(endpoint);
     return NextResponse.json(demo || getEmptyResponse(endpoint || ""));
   }

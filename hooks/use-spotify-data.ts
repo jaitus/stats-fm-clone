@@ -30,7 +30,7 @@ async function fetchSpotifyData<T>(
       }
 
       // Refresh failed or no token — use demo data
-      console.log("[Demo] No auth, loading demo data...");
+      // Auth failed — use demo data
       const demoParams = new URLSearchParams({ endpoint, ...params, demo: "true" });
       const demoResponse = await fetch(`/api/spotify/data?${demoParams.toString()}`);
       if (demoResponse.ok) {

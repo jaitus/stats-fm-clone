@@ -176,7 +176,7 @@ export default function DashboardPage() {
 
       <div className="container mx-auto px-6 py-8">
         {/* Overview Stats */}
-        <div className="grid grid-cols-2 md:grid-cols-4 gap-4 mb-8">
+        <div className="grid grid-cols-2 md:grid-cols-4 gap-4 mb-4 stagger-children">
           {[
             {
               label: "Top Artist",
@@ -201,7 +201,7 @@ export default function DashboardPage() {
           ].map((stat) => (
             <div
               key={stat.label}
-              className="glass-card rounded-xl p-4 flex items-start gap-3"
+              className="glass-card rounded-xl p-4 flex items-start gap-3 hover:border-primary/20 hover:bg-primary/[0.02] transition-all duration-300 hover:scale-[1.02] cursor-default"
             >
               <div className="w-10 h-10 rounded-lg bg-primary/10 flex items-center justify-center flex-shrink-0">
                 <stat.icon className="w-5 h-5 text-primary" />
@@ -217,6 +217,28 @@ export default function DashboardPage() {
             </div>
           ))}
         </div>
+
+        {/* Listening Summary */}
+        {topTracks.length > 0 && (
+          <div className="glass-card rounded-xl px-6 py-3 mb-8 flex flex-wrap items-center justify-center gap-6 text-sm">
+            <div className="flex items-center gap-2">
+              <Disc3 className="w-4 h-4 text-primary" />
+              <span className="text-muted-foreground">Tracking</span>
+              <span className="font-bold text-primary">{topTracks.length} tracks</span>
+            </div>
+            <div className="w-px h-4 bg-border hidden sm:block" />
+            <div className="flex items-center gap-2">
+              <Users className="w-4 h-4 text-primary" />
+              <span className="font-bold text-primary">{topArtists.length} artists</span>
+            </div>
+            <div className="w-px h-4 bg-border hidden sm:block" />
+            <div className="flex items-center gap-2">
+              <BarChart3 className="w-4 h-4 text-primary" />
+              <span className="font-bold text-primary">{genreDistribution.length} genres</span>
+              <span className="text-muted-foreground">detected</span>
+            </div>
+          </div>
+        )}
 
         {/* Time Range Selector + Tabs */}
         <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4 mb-6">
@@ -261,7 +283,7 @@ export default function DashboardPage() {
         </div>
 
         {/* Tab Content */}
-        <div className="fade-in-up" key={`${activeTab}-${timeRange}`}>
+        <div className="tab-content-enter" key={`${activeTab}-${timeRange}`}>
           {activeTab === "tracks" && (
             <TopTracks tracks={topTracks} isLoading={isLoading} />
           )}
