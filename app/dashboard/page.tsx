@@ -1,7 +1,7 @@
 "use client";
 
-import { useEffect, useState, useCallback, useRef } from "react";
-import { useSpotifyData } from "@/hooks/use-spotify-data";
+import { useEffect, useState, useRef } from "react";
+
 import {
   calculateGenreDistribution,
   calculateGenreDiversity,
@@ -39,14 +39,6 @@ import Image from "next/image";
 type Tab = "tracks" | "artists" | "genres" | "heatmap" | "mood" | "personality";
 
 export default function DashboardPage() {
-  const {
-    fetchProfile,
-    fetchTopTracks,
-    fetchTopArtists,
-    fetchRecentlyPlayed,
-    fetchAudioFeatures,
-  } = useSpotifyData();
-
   const [profile, setProfile] = useState<SpotifyUser | null>(null);
   const [topTracks, setTopTracks] = useState<SpotifyTrack[]>([]);
   const [topArtists, setTopArtists] = useState<SpotifyArtist[]>([]);
@@ -55,19 +47,37 @@ export default function DashboardPage() {
   const [activeTab, setActiveTab] = useState<Tab>("tracks");
   const [timeRange, setTimeRange] = useState<TimeRange>("medium_term");
   const [isLoading, setIsLoading] = useState(true);
-  const initialLoadDoneRef = useRef(false);
+  const loadedStaticRef = useRef(false);
+  const loadingRef = useRef(false);
 
-  const loadData = useCallback(
-    async (range: TimeRange) => {
-      setIsLoading(true);
+  useEffect(() => {
+    // Guard against double-fire (React StrictMode) and overlapping loads
+    if (loadingRef.current) return;
+    loadingRef.current = true;
+    setIsLoading(true);
+
+    async function doFetch(endpoint: string, params?: Record<string, string>) {
+      const searchParams = new URLSearchParams({ endpoint, ...params });
+      const res = await fetch(`/api/spotify/data?${searchParams.toString()}`);
+      if (!res.ok) {
+        // Try demo fallback on any error
+        const demoParams = new URLSearchParams({ endpoint, ...params, demo: "true" });
+        const demoRes = await fetch(`/api/spotify/data?${demoParams.toString()}`);
+        if (demoRes.ok) return demoRes.json();
+        return null;
+      }
+      return res.json();
+    }
+
+    (async () => {
       try {
-        const shouldFetchStatic = !initialLoadDoneRef.current;
+        const fetchStatic = !loadedStaticRef.current;
         const [profileData, tracksData, artistsData, recentData] =
           await Promise.all([
-            shouldFetchStatic ? fetchProfile() : Promise.resolve(null),
-            fetchTopTracks(range),
-            fetchTopArtists(range),
-            shouldFetchStatic ? fetchRecentlyPlayed() : Promise.resolve(null),
+            fetchStatic ? doFetch("profile") : Promise.resolve(null),
+            doFetch("top-tracks", { time_range: timeRange }),
+            doFetch("top-artists", { time_range: timeRange }),
+            fetchStatic ? doFetch("recently-played") : Promise.resolve(null),
           ]);
 
         if (profileData) setProfile(profileData);
@@ -75,27 +85,23 @@ export default function DashboardPage() {
         if (Array.isArray(artistsData)) setTopArtists(artistsData);
         if (recentData && Array.isArray(recentData)) setRecentlyPlayed(recentData);
 
-        // Fetch audio features for top tracks
+        // Fetch audio features
         const tracks = Array.isArray(tracksData) ? tracksData : [];
         if (tracks.length > 0) {
-          const trackIds = tracks.map((t) => t.id);
-          const features = await fetchAudioFeatures(trackIds);
+          const ids = tracks.map((t: SpotifyTrack) => t.id).join(",");
+          const features = await doFetch("audio-features", { ids });
           if (Array.isArray(features)) setAudioFeatures(features);
         }
 
-        initialLoadDoneRef.current = true;
+        loadedStaticRef.current = true;
       } catch (err) {
         console.error("Failed to load dashboard data:", err);
       } finally {
         setIsLoading(false);
+        loadingRef.current = false;
       }
-    },
-    [fetchProfile, fetchTopTracks, fetchTopArtists, fetchRecentlyPlayed, fetchAudioFeatures]
-  );
-
-  useEffect(() => {
-    loadData(timeRange);
-  }, [timeRange, loadData]);
+    })();
+  }, [timeRange]);
 
   // Derived data
   const genreDistribution = calculateGenreDistribution(topArtists, topTracks);
@@ -119,7 +125,7 @@ export default function DashboardPage() {
     { id: "personality", label: "Personality", icon: Sparkles },
   ];
 
-  if (isLoading && !initialLoadDoneRef.current) {
+  if (isLoading && !loadedStaticRef.current) {
     return <DashboardSkeleton />;
   }
 
