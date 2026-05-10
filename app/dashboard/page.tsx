@@ -46,61 +46,85 @@ export default function DashboardPage() {
   const [audioFeatures, setAudioFeatures] = useState<SpotifyAudioFeatures[]>([]);
   const [activeTab, setActiveTab] = useState<Tab>("tracks");
   const [timeRange, setTimeRange] = useState<TimeRange>("medium_term");
-  const [isLoading, setIsLoading] = useState(true);
+  const [isLoading, setIsLoading] = useState(true);      // true only on first load
+  const [isRefreshing, setIsRefreshing] = useState(false); // true on time range switch
   const loadedStaticRef = useRef(false);
-  const loadingRef = useRef(false);
+  const abortRef = useRef<AbortController | null>(null);
 
   useEffect(() => {
-    // Guard against double-fire (React StrictMode) and overlapping loads
-    if (loadingRef.current) return;
-    loadingRef.current = true;
-    setIsLoading(true);
+    // Abort any in-flight request when timeRange changes
+    if (abortRef.current) abortRef.current.abort();
+    const controller = new AbortController();
+    abortRef.current = controller;
+
+    const firstLoad = !loadedStaticRef.current;
+    if (firstLoad) {
+      setIsLoading(true);
+    } else {
+      setIsRefreshing(true);
+    }
 
     async function doFetch(endpoint: string, params?: Record<string, string>) {
       const searchParams = new URLSearchParams({ endpoint, ...params });
-      const res = await fetch(`/api/spotify/data?${searchParams.toString()}`);
-      if (!res.ok) {
-        // Try demo fallback on any error
-        const demoParams = new URLSearchParams({ endpoint, ...params, demo: "true" });
-        const demoRes = await fetch(`/api/spotify/data?${demoParams.toString()}`);
-        if (demoRes.ok) return demoRes.json();
-        return null;
+      try {
+        const res = await fetch(`/api/spotify/data?${searchParams.toString()}`, {
+          signal: controller.signal,
+        });
+        if (res.ok) return res.json();
+      } catch {
+        if (controller.signal.aborted) return null;
       }
-      return res.json();
+      // Fallback to demo
+      try {
+        const demoParams = new URLSearchParams({ endpoint, ...params, demo: "true" });
+        const demoRes = await fetch(`/api/spotify/data?${demoParams.toString()}`, {
+          signal: controller.signal,
+        });
+        if (demoRes.ok) return demoRes.json();
+      } catch { /* aborted */ }
+      return null;
     }
 
     (async () => {
       try {
-        const fetchStatic = !loadedStaticRef.current;
         const [profileData, tracksData, artistsData, recentData] =
           await Promise.all([
-            fetchStatic ? doFetch("profile") : Promise.resolve(null),
+            firstLoad ? doFetch("profile") : Promise.resolve(null),
             doFetch("top-tracks", { time_range: timeRange }),
             doFetch("top-artists", { time_range: timeRange }),
-            fetchStatic ? doFetch("recently-played") : Promise.resolve(null),
+            firstLoad ? doFetch("recently-played") : Promise.resolve(null),
           ]);
+
+        if (controller.signal.aborted) return;
 
         if (profileData) setProfile(profileData);
         if (Array.isArray(tracksData)) setTopTracks(tracksData);
         if (Array.isArray(artistsData)) setTopArtists(artistsData);
         if (recentData && Array.isArray(recentData)) setRecentlyPlayed(recentData);
 
-        // Fetch audio features
         const tracks = Array.isArray(tracksData) ? tracksData : [];
         if (tracks.length > 0) {
           const ids = tracks.map((t: SpotifyTrack) => t.id).join(",");
           const features = await doFetch("audio-features", { ids });
-          if (Array.isArray(features)) setAudioFeatures(features);
+          if (!controller.signal.aborted && Array.isArray(features)) {
+            setAudioFeatures(features);
+          }
         }
 
         loadedStaticRef.current = true;
       } catch (err) {
-        console.error("Failed to load dashboard data:", err);
+        if (!controller.signal.aborted) {
+          console.error("Failed to load dashboard data:", err);
+        }
       } finally {
-        setIsLoading(false);
-        loadingRef.current = false;
+        if (!controller.signal.aborted) {
+          setIsLoading(false);
+          setIsRefreshing(false);
+        }
       }
     })();
+
+    return () => controller.abort();
   }, [timeRange]);
 
   // Derived data
@@ -141,6 +165,12 @@ export default function DashboardPage() {
 
   return (
     <div className="min-h-screen bg-background">
+      {/* Top loading bar for time range refreshes */}
+      {isRefreshing && (
+        <div className="fixed top-0 left-0 right-0 z-[100] h-0.5 bg-primary/20">
+          <div className="h-full bg-primary animate-pulse" style={{ width: "60%" }} />
+        </div>
+      )}
       {/* Top Bar */}
       <nav className="border-b border-border/30 bg-background/80 backdrop-blur-xl sticky top-0 z-50">
         <div className="container mx-auto px-6 py-3">
