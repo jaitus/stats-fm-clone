@@ -18,6 +18,7 @@ interface TopTracksProps {
 
 export function TopTracks({ tracks, isLoading }: TopTracksProps) {
   const [playingId, setPlayingId] = useState<string | null>(null);
+  const [hoveredId, setHoveredId] = useState<string | null>(null);
   const [progress, setProgress] = useState(0);
   const audioRef = useRef<HTMLAudioElement | null>(null);
   const intervalRef = useRef<ReturnType<typeof setInterval> | null>(null);
@@ -61,7 +62,6 @@ export function TopTracks({ tracks, isLoading }: TopTracksProps) {
     audio.onended = () => stopPlayback();
   }, [playingId, stopPlayback]);
 
-  // Cleanup on unmount
   useEffect(() => {
     return () => stopPlayback();
   }, [stopPlayback]);
@@ -84,7 +84,6 @@ export function TopTracks({ tracks, isLoading }: TopTracksProps) {
     );
   }
 
-  // Listening stats
   const totalMs = tracks.reduce((sum, t) => sum + (t.duration_ms || 0), 0);
   const avgPopularity = Math.round(tracks.reduce((sum, t) => sum + (t.popularity || 0), 0) / tracks.length);
   const uniqueArtists = new Set(tracks.flatMap(t => (t.artists || []).map(a => a.name))).size;
@@ -111,10 +110,12 @@ export function TopTracks({ tracks, isLoading }: TopTracksProps) {
       <div className="space-y-2 stagger-children">
         {tracks.map((track, index) => {
           const isPlaying = playingId === track.id;
+          const isHovered = hoveredId === track.id;
+          const showOverlay = track.preview_url && (isPlaying || isHovered);
           return (
             <div
               key={track.id}
-              className={`group glass-card rounded-xl p-3 sm:p-4 flex items-center gap-4 transition-all duration-300 hover:bg-white/[0.03] hover:border-primary/20 hover:scale-[1.005] ${
+              className={`group glass-card rounded-xl p-3 sm:p-4 flex items-center gap-4 transition-all duration-300 hover:bg-white/[0.03] hover:border-primary/20 ${
                 isPlaying ? "border-primary/30 bg-primary/[0.03] glow-green" : ""
               }`}
             >
@@ -127,30 +128,38 @@ export function TopTracks({ tracks, isLoading }: TopTracksProps) {
 
               {/* Album Art + Play Button */}
               <div
-                className="relative w-12 h-12 rounded-lg overflow-hidden flex-shrink-0 bg-secondary cursor-pointer group/art"
+                className="relative w-12 h-12 rounded-lg overflow-hidden flex-shrink-0 bg-secondary cursor-pointer"
                 onClick={(e) => { e.preventDefault(); togglePreview(track); }}
+                onMouseEnter={() => setHoveredId(track.id)}
+                onMouseLeave={() => setHoveredId(null)}
               >
                 {track.album?.images?.[0]?.url && (
                   <Image
                     src={track.album.images[0].url}
-                    alt={track.album.name}
+                    alt={track.album?.name || "Album"}
                     fill
-                    className={`object-cover transition-all duration-300 ${isPlaying ? "scale-110 brightness-75" : "group-hover/art:scale-110 group-hover/art:brightness-75"}`}
+                    className="object-cover transition-all duration-300"
+                    style={{
+                      transform: showOverlay ? "scale(1.1)" : "scale(1)",
+                      filter: showOverlay ? "brightness(0.6)" : "brightness(1)",
+                    }}
                     sizes="48px"
                   />
                 )}
-                {track.preview_url && (
-                  <div className={`absolute inset-0 flex items-center justify-center transition-opacity duration-200 ${isPlaying ? "opacity-100" : "opacity-0 group-hover/art:opacity-100"}`}>
-                    {isPlaying ? (
-                      <Pause className="w-5 h-5 text-white drop-shadow-lg" fill="white" />
-                    ) : (
-                      <Play className="w-5 h-5 text-white drop-shadow-lg" fill="white" />
-                    )}
-                  </div>
-                )}
-                {/* Playback progress ring */}
+                {/* Play/Pause overlay — always rendered, opacity toggled */}
+                <div
+                  className="absolute inset-0 flex items-center justify-center transition-opacity duration-200"
+                  style={{ opacity: showOverlay ? 1 : 0 }}
+                >
+                  {isPlaying ? (
+                    <Pause className="w-5 h-5 text-white drop-shadow-lg" fill="white" />
+                  ) : (
+                    <Play className="w-5 h-5 text-white drop-shadow-lg" fill="white" />
+                  )}
+                </div>
+                {/* Playback progress bar */}
                 {isPlaying && (
-                  <div className="absolute bottom-0 left-0 right-0 h-0.5 bg-black/30">
+                  <div className="absolute bottom-0 left-0 right-0 h-1 bg-black/30">
                     <div
                       className="h-full bg-primary transition-all duration-100"
                       style={{ width: `${progress}%` }}
