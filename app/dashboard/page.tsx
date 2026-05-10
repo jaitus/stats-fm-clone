@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState, useCallback } from "react";
+import { useEffect, useState, useCallback, useRef } from "react";
 import { useSpotifyData } from "@/hooks/use-spotify-data";
 import {
   calculateGenreDistribution,
@@ -55,18 +55,19 @@ export default function DashboardPage() {
   const [activeTab, setActiveTab] = useState<Tab>("tracks");
   const [timeRange, setTimeRange] = useState<TimeRange>("medium_term");
   const [isLoading, setIsLoading] = useState(true);
-  const [initialLoadDone, setInitialLoadDone] = useState(false);
+  const initialLoadDoneRef = useRef(false);
 
   const loadData = useCallback(
     async (range: TimeRange) => {
       setIsLoading(true);
       try {
+        const shouldFetchStatic = !initialLoadDoneRef.current;
         const [profileData, tracksData, artistsData, recentData] =
           await Promise.all([
-            !initialLoadDone ? fetchProfile() : Promise.resolve(profile),
+            shouldFetchStatic ? fetchProfile() : Promise.resolve(null),
             fetchTopTracks(range),
             fetchTopArtists(range),
-            !initialLoadDone ? fetchRecentlyPlayed() : Promise.resolve(recentlyPlayed),
+            shouldFetchStatic ? fetchRecentlyPlayed() : Promise.resolve(null),
           ]);
 
         if (profileData) setProfile(profileData);
@@ -82,20 +83,19 @@ export default function DashboardPage() {
           if (Array.isArray(features)) setAudioFeatures(features);
         }
 
-        setInitialLoadDone(true);
+        initialLoadDoneRef.current = true;
       } catch (err) {
         console.error("Failed to load dashboard data:", err);
       } finally {
         setIsLoading(false);
       }
     },
-    [fetchProfile, fetchTopTracks, fetchTopArtists, fetchRecentlyPlayed, fetchAudioFeatures, initialLoadDone, profile, recentlyPlayed]
+    [fetchProfile, fetchTopTracks, fetchTopArtists, fetchRecentlyPlayed, fetchAudioFeatures]
   );
 
   useEffect(() => {
     loadData(timeRange);
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [timeRange]);
+  }, [timeRange, loadData]);
 
   // Derived data
   const genreDistribution = calculateGenreDistribution(topArtists, topTracks);
@@ -119,7 +119,7 @@ export default function DashboardPage() {
     { id: "personality", label: "Personality", icon: Sparkles },
   ];
 
-  if (isLoading && !initialLoadDone) {
+  if (isLoading && !initialLoadDoneRef.current) {
     return <DashboardSkeleton />;
   }
 

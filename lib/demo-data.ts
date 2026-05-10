@@ -118,7 +118,7 @@ export const DEMO_TRACKS: SpotifyTrack[] = trackData.map(([name, artist, album, 
   },
   duration_ms: duration,
   popularity,
-  preview_url: null,
+  preview_url: "https://www.soundhelix.com/examples/mp3/SoundHelix-Song-1.mp3",
   external_urls: { spotify: `https://open.spotify.com/track/demo${i}` },
 }));
 
